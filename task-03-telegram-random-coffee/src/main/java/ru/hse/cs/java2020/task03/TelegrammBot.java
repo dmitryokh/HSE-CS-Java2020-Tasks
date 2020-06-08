@@ -11,6 +11,7 @@ public class TelegrammBot {
     private static final int MAGIC_NUBMER_3 = 3;
     private static final int MAGIC_NUBMER_4 = 4;
     private static final int MAGIC_NUBMER_5 = 5;
+    private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int AUTHORIZE_SIZE = 4;
     private static final int MAKE_TASK_SIZE = 4;
 
@@ -178,10 +179,10 @@ public class TelegrammBot {
             } else {
                 if (request.length < 2) {
                     pageNum = 1;
-                    if (tasks.size() < MAGIC_NUBMER_5) {
+                    if (tasks.size() < DEFAULT_PAGE_SIZE) {
                         pageLen = tasks.size();
                     } else {
-                        pageLen = MAGIC_NUBMER_5;
+                        pageLen = DEFAULT_PAGE_SIZE;
                     }
                     begin = 0;
                     end = pageLen * pageNum;
