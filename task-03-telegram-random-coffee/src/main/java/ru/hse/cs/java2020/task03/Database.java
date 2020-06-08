@@ -30,6 +30,14 @@ public class Database {
         }
     }
 
+    void stop() {
+        try {
+            connection.close();
+        } catch (SQLException exc) {
+            exc.printStackTrace();
+        }
+    }
+
     void insert(long chatId, User u) {
         try {
             var toDelete = connection.createStatement();

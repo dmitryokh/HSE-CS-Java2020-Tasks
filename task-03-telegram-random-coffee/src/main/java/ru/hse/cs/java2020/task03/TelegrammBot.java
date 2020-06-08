@@ -11,6 +11,8 @@ public class TelegrammBot {
     private static final int MAGIC_NUBMER_3 = 3;
     private static final int MAGIC_NUBMER_4 = 4;
     private static final int MAGIC_NUBMER_5 = 5;
+    private static final int AUTHORIZE_SIZE = 4;
+    private static final int MAKE_TASK_SIZE = 4;
 
     public void run() {
         db.start();
@@ -23,6 +25,7 @@ public class TelegrammBot {
             }
             return UpdatesListener.CONFIRMED_UPDATES_ALL;
         });
+        //db.stop();
     }
 
     public void processUpdate(long chatId, String[] request) {
@@ -51,23 +54,31 @@ public class TelegrammBot {
             message(chatId);
             flag = 0;
         }
+        if (request[0].equals("/stop")) {
+            bot.execute(new SendMessage(chatId, "The connection with database is now stopped, you are unauthorized. "
+                    + "Type /start for more info"));
+            db.stop();
+            flag = 0;
+        }
         if (flag == 1) {
             bot.execute(new SendMessage(chatId, "That's an unknown command! Type /start for more info"));
         }
     }
 
     public void message(long chatId) {
-        bot.execute(new SendMessage(chatId, "This bot has the following methods:\n"
+        bot.execute(new SendMessage(chatId, "This bot can execute these commands:\n"
                 + "/authorize - authorizes you in the system. Required arguments - token, Organization ID, login\n"
                 + "/makeTask  - creates a new task. Required arguments - name, description, queueId, performer flag\n"
                 + "/getTaskInfo - returns task by ID. Required argument - TaskID\n"
-                + "/getMyTasks - returns tasks assigned to you. Required argument - number of tasks\n"
+                + "/getMyTasks - returns tasks assigned to you. Required argument - number of tasks per page, number of your page.\n"
                 + "/getMyQueues - returns all your queues. No Agruments required\n\n"
-                + "Remember, each argument should be in it's own line!"));
+                + "Remember, each argument should be in it's own line!\n"
+                + "Type /stop to stop the connection with database and unauthorize"));
     }
 
     public void authorize(long chatId, String[] request) {
-        if (request.length < MAGIC_NUBMER_4) {
+        db.start();
+        if (request.length < AUTHORIZE_SIZE) {
             bot.execute(new SendMessage(chatId, "That's not the expected amount of arguments\n"
                     + "Type /start to get more info"));
         } else {
@@ -82,13 +93,13 @@ public class TelegrammBot {
             bot.execute(new SendMessage(chatId, "You are not authorized"));
             return;
         }
-        if (request.length < MAGIC_NUBMER_4) {
+        if (request.length < MAKE_TASK_SIZE) {
             bot.execute(new SendMessage(chatId, "That's not the expected amount of arguments\n"
                     + "Type /start to get more info"));
             return;
         }
         Optional<String> created;
-        if (request.length > MAGIC_NUBMER_4) {
+        if (request.length > MAKE_TASK_SIZE) {
             created = client.createTask(user.get().getToken(), user.get().getOrg(), request[1], request[2],
                     Optional.of(request[MAGIC_NUBMER_4]), request[MAGIC_NUBMER_3]);
         } else {
@@ -153,18 +164,47 @@ public class TelegrammBot {
         }
         try {
             var tasks = client.getTasksByUser(user.get().getToken(), user.get().getOrg(), user.get().getLogin());
-            int tasksLen;
-            bot.execute(new SendMessage(chatId, "Here are your tasks:"));
-            if (request.length > 1) {
-                tasksLen = Integer.parseInt(request[1]);
+            int pageLen, pageNum, begin, end;
+            if (request.length == 2) {
+                pageLen = Integer.parseInt(request[1]);
+                pageNum = 1;
+                begin = 0;
+                end = pageLen * pageNum;
+                if (tasks.size() < end) {
+                    bot.execute(new SendMessage(chatId, "Ooops, that's too many tasks!"));
+                    end = tasks.size();
+                }
+                bot.execute(new SendMessage(chatId, "Here are your last " + String.valueOf(end) + " tasks:"));
             } else {
-                if (tasks.size() < MAGIC_NUBMER_5) {
-                    tasksLen = tasks.size();
+                if (request.length < 2) {
+                    pageNum = 1;
+                    if (tasks.size() < MAGIC_NUBMER_5) {
+                        pageLen = tasks.size();
+                    } else {
+                        pageLen = MAGIC_NUBMER_5;
+                    }
+                    begin = 0;
+                    end = pageLen * pageNum;
+                    bot.execute(new SendMessage(chatId, "Here are your last " + String.valueOf(pageLen) + " tasks:"));
                 } else {
-                    tasksLen = MAGIC_NUBMER_5;
+                    pageLen = Integer.parseInt(request[1]);
+                    pageNum = Integer.parseInt(request[2]);
+                    begin = (pageNum - 1) * pageLen;
+                    end = pageLen * pageNum;
+                    if (tasks.size() < end) {
+                        end = tasks.size();
+                    }
+                    if (begin + 1 > end) {
+                        bot.execute(new SendMessage(chatId, "Theree are no tasks from " + String.valueOf(begin + 1)
+                                + " to " + String.valueOf(end)
+                                + ". Please, enter valid numbers"));
+                    } else {
+                        bot.execute(new SendMessage(chatId, "Here are your tasks from " + String.valueOf(begin + 1)
+                                + " to " + String.valueOf(end)));
+                    }
                 }
             }
-            for (int i = 0; i < tasksLen; i++) {
+            for (int i = begin; i < end; i++) {
                 bot.execute(new SendMessage(chatId, tasks.get(i)));
             }
         } catch (TrackerException e) {
@@ -180,7 +220,7 @@ public class TelegrammBot {
                 return;
             }
             var queues = client.getAllQueues(user.get().getToken(), user.get().getOrg());
-            bot.execute(new SendMessage(chatId, "Here are your queues:"));
+            bot.execute(new SendMessage(chatId, "Here are all your queues:"));
             for (var q : queues) {
                 bot.execute(new SendMessage(chatId, q.getKey() + " with id = " + q.getId()));
             }
@@ -189,10 +229,10 @@ public class TelegrammBot {
         }
     }
 
-    public TelegrammBot(TelegramBot givenBot, Database givenDatabase, Client givenClient) {
-        bot = givenBot;
-        db = givenDatabase;
-        client = givenClient;
+    public TelegrammBot(TelegramBot b, Database d, Client c) {
+        bot = b;
+        db = d;
+        client = c;
     }
 
     private final TelegramBot bot;
