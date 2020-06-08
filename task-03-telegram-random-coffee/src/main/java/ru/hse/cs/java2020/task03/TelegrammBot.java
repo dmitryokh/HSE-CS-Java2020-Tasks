@@ -10,7 +10,6 @@ import java.util.Optional;
 public class TelegrammBot {
     private static final int MAGIC_NUBMER_3 = 3;
     private static final int MAGIC_NUBMER_4 = 4;
-    private static final int MAGIC_NUBMER_5 = 5;
     private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int AUTHORIZE_SIZE = 4;
     private static final int MAKE_TASK_SIZE = 4;
